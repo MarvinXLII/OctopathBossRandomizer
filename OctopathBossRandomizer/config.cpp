@@ -150,7 +150,7 @@ intvector configParser(std::string input, std::wstring* pakPathPointer) {
         configs[15] = 0;
         configs[16] = 0;
         configs[17] = 0;
-        *pakPathPointer = L"C:\\Program Files (x86)\\Steam\\Steamapps\\Common\\OCTOPATH TRAVELER\\Octopath_Traveler\\Content\\Paks";
+        *pakPathPointer = L"";
     }
 
     configFile.close();

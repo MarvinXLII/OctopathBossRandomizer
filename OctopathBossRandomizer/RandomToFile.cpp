@@ -1,35 +1,8 @@
 #include "Octopath.h"
 #include <Windows.h>
-//#include <ShObjIdl.h>
-//#include <ShlGuid.h>
-
-// Function to delete directory using IFileOperation COM
-//void deleteDirectory(PCWSTR pszPath) {
-//    HRESULT hr;
-//    IFileOperation* pfo;
-//    // Initialize the COM interface 
-//    hr = CoCreateInstance(CLSID_FileOperation, NULL, CLSCTX_ALL, IID_PPV_ARGS(&pfo));
-//    if (SUCCEEDED(hr)) {
-//        hr = pfo->SetOperationFlags(FOF_NOCONFIRMATION | FOF_SILENT);
-//        if (SUCCEEDED(hr)) {
-//            IShellItem* deleteItem = NULL;
-//            hr = SHCreateItemFromParsingName(pszPath, NULL, IID_PPV_ARGS(&deleteItem));
-//            if (SUCCEEDED(hr)) {
-//                hr = pfo->DeleteItem(deleteItem, NULL);
-//                if (SUCCEEDED(hr)) {
-//                    hr = pfo->PerformOperations();
-//                }
-//                deleteItem->Release();
-//            }
-//        }
-//        pfo->Release();
-//    }
-//
-//    CoUninitialize();
-//}
 
 // Function for converting the random values into strings, and writing them into the files
-int randomToFile(std::mt19937 rng, vectorvector inputVector, bool soloTraveler, unsigned int seedInput, int winCondition) {
+int randomToFile(std::mt19937 rng, vectorvector inputVector, bool soloTraveler, std::wstring output_dir, int winCondition) {
 
     // map for storing variables to names
     // Boss names
@@ -152,30 +125,8 @@ int randomToFile(std::mt19937 rng, vectorvector inputVector, bool soloTraveler, 
     extraFiles[15] = L"EndRoll_THE"; // Cyrus' endroll
     extraFiles[16] = L"EndRoll_ULR"; // Ophilia's endroll
 
-    // Check if files exist
-    bool errorCheck = true;
-    for (int i = 0; i < files.size(); i++) {
-        DWORD check = GetFileAttributes((L".\\working\\json\\" + files[i]).c_str());
-        if (check == INVALID_FILE_ATTRIBUTES) {
-            std::cout << L"Could not find file " << files[i].c_str() << std::endl;
-            errorCheck = false;
-        }
-    }
-    // also check extra files
-    for (int i = 0; i < extraFiles.size(); i++) {
-        DWORD check = GetFileAttributes((L".\\working\\json\\PCwin\\" + extraFiles[i]).c_str());
-        if (check == INVALID_FILE_ATTRIBUTES) {
-            std::cout << L"Could not find file " << extraFiles[i].c_str() << std::endl;
-            errorCheck = false;
-        }
-    }
-    for (int i = 0; i < extraFiles.size(); i++) {
-        DWORD check = GetFileAttributes((L".\\working\\json\\Galderawin\\" + extraFiles[i]).c_str());
-        if (check == INVALID_FILE_ATTRIBUTES) {
-            std::cout << L"Could not find file " << extraFiles[i].c_str() << std::endl;
-            errorCheck = false;
-        }
-    }
+     // Check if files exist
+     bool errorCheck = true;
 
     // map vector to deque for easy iteration
     std::deque<int> randomBosses;
@@ -196,142 +147,112 @@ int randomToFile(std::mt19937 rng, vectorvector inputVector, bool soloTraveler, 
     }
     else {
 
-        // Check files in the proper Octopath Pak location first
-        WCHAR fullFilename[MAX_PATH];
-        GetFullPathName(L".\\working\\Octopath_Traveler\\Content\\Event\\json", MAX_PATH, fullFilename, nullptr);
-        DWORD fileDirectoryCheck = GetFileAttributes(fullFilename);
-        // Create directory if it doesn't exist, ofstream automatically overwrites file
-        if (fileDirectoryCheck == INVALID_FILE_ATTRIBUTES) {
-            CreateDirectory(fullFilename, NULL);
-        }
+        //// Check files in the proper Octopath Pak location first
+        //WCHAR fullFilename[MAX_PATH];
+        //GetFullPathName(L".\\working\\Octopath_Traveler\\Content\\Event\\json", MAX_PATH, fullFilename, nullptr);
+        //DWORD fileDirectoryCheck = GetFileAttributes(fullFilename);
+        //// Create directory if it doesn't exist, ofstream automatically overwrites file
+        //if (fileDirectoryCheck == INVALID_FILE_ATTRIBUTES) {
+        //    CreateDirectory(fullFilename, NULL);
+        //}
+
+        // TODO: Include solo traveler option
         if (soloTraveler == true) {
-            // Create a list of solo travelers for the bosses, the first chapters are always the same
-            // Both phases of Galdera are excempt from solo
-            std::deque<int> soloTravelers;
-            int galderaCheck;
-            galderaCheck = randomBosses.front();
-            galderaCheck >= 45 ? soloTravelers.push_back(0) : soloTravelers.push_back(2);
-            randomBosses.pop_front();
-            randomBosses.push_back(galderaCheck);
-            galderaCheck = randomBosses.front();
-            galderaCheck >= 45 ? soloTravelers.push_back(0) : soloTravelers.push_back(8);
-            randomBosses.pop_front();
-            randomBosses.push_back(galderaCheck);
-            galderaCheck = randomBosses.front();
-            galderaCheck >= 45 ? soloTravelers.push_back(0) : soloTravelers.push_back(6);
-            randomBosses.pop_front();
-            randomBosses.push_back(galderaCheck);
-            galderaCheck = randomBosses.front();
-            galderaCheck >= 45 ? soloTravelers.push_back(0) : soloTravelers.push_back(5);
-            randomBosses.pop_front();
-            randomBosses.push_back(galderaCheck);
-            galderaCheck = randomBosses.front();
-            galderaCheck >= 45 ? soloTravelers.push_back(0) : soloTravelers.push_back(1);
-            randomBosses.pop_front();
-            randomBosses.push_back(galderaCheck);
-            galderaCheck = randomBosses.front();
-            galderaCheck >= 45 ? soloTravelers.push_back(0) : soloTravelers.push_back(4);
-            randomBosses.pop_front();
-            randomBosses.push_back(galderaCheck);
-            galderaCheck = randomBosses.front();
-            galderaCheck >= 45 ? soloTravelers.push_back(0) : soloTravelers.push_back(3);
-            randomBosses.pop_front();
-            randomBosses.push_back(galderaCheck);
-            galderaCheck = randomBosses.front();
-            galderaCheck >= 45 ? soloTravelers.push_back(0) : soloTravelers.push_back(7);
-            randomBosses.pop_front();
-            randomBosses.push_back(galderaCheck);
-            for (int i = 8; i <= 46; i++) {
-                // Check for Galdera, use random character otherwise
-                galderaCheck = randomBosses.front();
-                if (galderaCheck >= 45) {
-                    soloTravelers.push_back(0);
-                }
-                else {
-                    std::uniform_int_distribution <std::mt19937::result_type> characters(1, 8);
-                    soloTravelers.push_back(characters(rng));
-                }
-                randomBosses.pop_front();
-                randomBosses.push_back(galderaCheck);
-            }
-            // Create special spoilers
-            soloSpoiler(randomBosses, seedInput, soloTravelers);
-            std::wstring digits = L"012345678";
-            // For each file, read the file, search for the string to replace, and place the file in the proper location
-            for (unsigned int i = 0; i < files.size(); i++) {
+            // // Create a list of solo travelers for the bosses, the first chapters are always the same
+            // // Both phases of Galdera are excempt from solo
+            // std::deque<int> soloTravelers;
+            // int galderaCheck;
+            // galderaCheck = randomBosses.front();
+            // galderaCheck >= 45 ? soloTravelers.push_back(0) : soloTravelers.push_back(2);
+            // randomBosses.pop_front();
+            // randomBosses.push_back(galderaCheck);
+            // galderaCheck = randomBosses.front();
+            // galderaCheck >= 45 ? soloTravelers.push_back(0) : soloTravelers.push_back(8);
+            // randomBosses.pop_front();
+            // randomBosses.push_back(galderaCheck);
+            // galderaCheck = randomBosses.front();
+            // galderaCheck >= 45 ? soloTravelers.push_back(0) : soloTravelers.push_back(6);
+            // randomBosses.pop_front();
+            // randomBosses.push_back(galderaCheck);
+            // galderaCheck = randomBosses.front();
+            // galderaCheck >= 45 ? soloTravelers.push_back(0) : soloTravelers.push_back(5);
+            // randomBosses.pop_front();
+            // randomBosses.push_back(galderaCheck);
+            // galderaCheck = randomBosses.front();
+            // galderaCheck >= 45 ? soloTravelers.push_back(0) : soloTravelers.push_back(1);
+            // randomBosses.pop_front();
+            // randomBosses.push_back(galderaCheck);
+            // galderaCheck = randomBosses.front();
+            // galderaCheck >= 45 ? soloTravelers.push_back(0) : soloTravelers.push_back(4);
+            // randomBosses.pop_front();
+            // randomBosses.push_back(galderaCheck);
+            // galderaCheck = randomBosses.front();
+            // galderaCheck >= 45 ? soloTravelers.push_back(0) : soloTravelers.push_back(3);
+            // randomBosses.pop_front();
+            // randomBosses.push_back(galderaCheck);
+            // galderaCheck = randomBosses.front();
+            // galderaCheck >= 45 ? soloTravelers.push_back(0) : soloTravelers.push_back(7);
+            // randomBosses.pop_front();
+            // randomBosses.push_back(galderaCheck);
+            // for (int i = 8; i <= 46; i++) {
+            //     // Check for Galdera, use random character otherwise
+            //     galderaCheck = randomBosses.front();
+            //     if (galderaCheck >= 45) {
+            //         soloTravelers.push_back(0);
+            //     }
+            //     else {
+            //         std::uniform_int_distribution <std::mt19937::result_type> characters(1, 8);
+            //         soloTravelers.push_back(characters(rng));
+            //     }
+            //     randomBosses.pop_front();
+            //     randomBosses.push_back(galderaCheck);
+            // }
+            // // Create special spoilers
+            // soloSpoiler(randomBosses, seedInput, soloTravelers);
+            // std::wstring digits = L"012345678";
+            // // For each file, read the file, search for the string to replace, and place the file in the proper location
+            // for (unsigned int i = 0; i < files.size(); i++) {
 
-                std::wstring input = L".\\working\\json\\" + files[i];
-                std::wstring output = L".\\working\\Octopath_Traveler\\Content\\Event\\json\\" + files[i];
-                std::wifstream in(input);
-                std::wofstream out(output);
+            //     std::wstring input = L".\\working\\json\\" + files[i];
+            //     std::wstring output = L".\\working\\Octopath_Traveler\\Content\\Event\\json\\" + files[i];
+            //     std::wifstream in(input);
+            //     std::wofstream out(output);
 
-                std::wstring line;
-                size_t len = bosses[i].length();
-                while (getline(in, line)) {
-                    size_t pos = line.find(bosses[i]);
-                    if (pos != std::wstring::npos) {
-                        //line.replace(pos, len, bosses[randomBosses.front()]);
-                        line.replace(pos, len, bosses[i]);
-                        size_t solopos = line.find(L"\",\"0\"");
-                        if (solopos != std::wstring::npos) {
-                            std::wstring replaceSolo = L"\",\"" + std::wstring(1, digits.at(soloTravelers.front())) + L"\"";
-                            line.replace(solopos, replaceSolo.length(), replaceSolo);
-                            soloTravelers.pop_front();
-                        }
-                        randomBosses.pop_front();
-                    }
-                    out << line << '\n';
-                }
-                in.close();
-                out.close();
-            }
+            //     std::wstring line;
+            //     size_t len = bosses[i].length();
+            //     while (getline(in, line)) {
+            //         size_t pos = line.find(bosses[i]);
+            //         if (pos != std::wstring::npos) {
+            //             //line.replace(pos, len, bosses[randomBosses.front()]);
+            //             line.replace(pos, len, bosses[i]);
+            //             size_t solopos = line.find(L"\",\"0\"");
+            //             if (solopos != std::wstring::npos) {
+            //                 std::wstring replaceSolo = L"\",\"" + std::wstring(1, digits.at(soloTravelers.front())) + L"\"";
+            //                 line.replace(solopos, replaceSolo.length(), replaceSolo);
+            //                 soloTravelers.pop_front();
+            //             }
+            //             randomBosses.pop_front();
+            //         }
+            //         out << line << '\n';
+            //     }
+            //     in.close();
+            //     out.close();
+            // }
         }
-        // Randomization is now done with EnemyGroupData, commented out
         else {
             // Create spoilers
-            spoiler(randomBosses, seedInput);
-
-            // For each file, read the file, search for the string to replace, and place the file in the proper location
-            for (unsigned int i = 0; i < files.size(); i++) {
-
-                std::wstring input = L".\\working\\json\\" + files[i];
-                std::wstring output = L".\\working\\Octopath_Traveler\\Content\\Event\\json\\" + files[i];
-                std::wifstream in(input);
-                std::wofstream out(output);
-
-                std::wstring line;
-                size_t len = bosses[i].length();
-                while (getline(in, line)) {
-                    size_t pos = line.find(bosses[i]);
-                    if (pos != std::wstring::npos) {
-                        //line.replace(pos, len, bosses[randomBosses.front()]);
-                        // just replaces line with normal boss
-                        line.replace(pos, len, bosses[i]);
-                        randomBosses.pop_front();
-                    }
-                    out << line << '\n';
-                }
-                in.close();
-                out.close();
-            }
-
+            spoiler(randomBosses, output_dir);
         }
-        if (winCondition == 0) {
-            //PC win condition
-            for (unsigned int i = 0; i < extraFiles.size(); i++) {
-                std::wstring input = L".\\working\\json\\PCwin\\" + extraFiles[i];
-                std::wstring output = L".\\working\\Octopath_Traveler\\Content\\Event\\json\\" + extraFiles[i];
-                CopyFile(input.c_str(), output.c_str(), FALSE);
-            }
-        }
-        else {
-            // Galdera win condition
-            for (unsigned int i = 0; i < extraFiles.size(); i++) {
-                std::wstring input = L".\\working\\json\\Galderawin\\" + extraFiles[i];
-                std::wstring output = L".\\working\\Octopath_Traveler\\Content\\Event\\json\\" + extraFiles[i];
-                CopyFile(input.c_str(), output.c_str(), FALSE);
-            }
-        }
+
+        // TODO: Files only modded for Galdera win condition. Include this at some point.
+        // if (winCondition != 0) {
+        //     // Galdera win condition
+        //     for (unsigned int i = 0; i < extraFiles.size(); i++) {
+        //         std::wstring input = L".\\working\\json\\Galderawin\\" + extraFiles[i];
+        //         std::wstring output = L".\\working\\Octopath_Traveler\\Content\\Event\\json\\" + extraFiles[i];
+        //         CopyFile(input.c_str(), output.c_str(), FALSE);
+        //     }
+        // }
         return 0;
     }
 }

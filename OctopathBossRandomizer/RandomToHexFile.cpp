@@ -7,7 +7,9 @@
 #define NOMINMAX
 #include <Windows.h>
 
-
+#include "enemy.h"
+#include "pak.h"
+#include <string>
 
 // Get high value for a two byte value
 char high(int input) {
@@ -24,21 +26,13 @@ int value(char low, char high) {
 
 
 // Binary copy for regular enemies
-void hexCopy(std::wstring inputFile, std::wstring outputFile) {
-	// Copies the contents from one binary file to another
-	std::ifstream input(inputFile, std::ios_base::in | std::ios_base::binary);
-	if (input.is_open()) {
-		std::ofstream output(outputFile, std::ios_base::out | std::ios_base::binary | std::ios_base::app);
-		if (output.is_open()) {
-			output << input.rdbuf();
-			output.close();
-		}
-	}
-	input.close();
+//void hexCopy(std::wstring inputFile, std::wstring outputFile) {
+void hexCopy(Enemy *e, unsigned char *data) {
+	std::memcpy(&data[e->pointer], e->data, e->size);
 }
 
 // Binary copy with music changing options
-void bossHexCopy(std::wstring bossname, std::wstring inputFile, std::string outputFile, bool useBattleBGM, bool useVictoryBGM, bool viewResults, int musicType, int endrollType) {
+void bossHexCopy(Enemy *e_old, Enemy *e_new, unsigned char *data, bool useBattleBGM, bool useVictoryBGM, bool viewResults, int musicType, int endrollType) {
 	// Map for the music types
 	std::map<int, int> music;
 	music[0] = 2034; // No music, for story bosses
@@ -121,245 +115,80 @@ void bossHexCopy(std::wstring bossname, std::wstring inputFile, std::string outp
 	endrolllow[31] = 31; // Alfyn chapter 3
 	endrolllow[32] = 32; // Alfyn chapter 4
 
+	// Copy the new data to uexp
+	std::memcpy(&data[e_old->pointer], e_new->data, e_new->size);
+
 	// Copy the boss name from first file, since it has to be the same
-	std::ifstream nameinput(bossname, std::ios_base::in | std::ios_base::binary);
-	if (nameinput.is_open()) {
-		std::ofstream output(outputFile, std::ios_base::out | std::ios_base::binary | std::ios_base::app);
-		if (output.is_open()) {
-			for (int i = 0; i < 8; i++) {
-				nameinput.seekg(i);
-				char b;
-				nameinput.read(&b, 1);
-				output << b;
-			}
-		}
-		output.close();
-	}
-	nameinput.close();
+	std::memcpy(&data[e_old->pointer], e_old->data, 8);
 
-	// Copies the boss contents for the random boss
-	std::ifstream input(inputFile, std::ios_base::in | std::ios_base::binary);
-	if (input.is_open()) {
-		// get size of file
-		input.ignore(std::numeric_limits<std::streamsize>::max());
-		std::streamsize length = input.gcount();
-		input.clear();
-		input.seekg(0, std::ios_base::beg);
-		std::ofstream output(outputFile, std::ios_base::out | std::ios_base::binary | std::ios_base::app);
-		if (output.is_open()) {
-			//output << input.rdbuf();
-			// copy all contents before music line
-			for (int i = 8; i < 140; i++) {
-				input.seekg(i);
-				char b;
-				input.read(&b, 1);
-				output << b;
-			}
-			// Background Music
-			// turn two byte value into hex chars
-			char lowm = low(music[musicType]);
-			char highm = high(music[musicType]);
-			// Write the low byte
-			output << lowm;
-			// Write the high byte
-			output << highm;
+	// Music
+	char lowm = low(music[musicType]);
+	char highm = high(music[musicType]);
+	data[e_old->pointer + 140] = lowm;
+	data[e_old->pointer + 141] = highm;
 
-			// copy all content before battleBGM
-			for (int i = 142; i < 172; i++) {
-				input.seekg(i);
-				char b;
-				input.read(&b, 1);
-				output << b;
-			}
+	// Various bools
+	uint8_t battle = useBattleBGM ? 1 : 0;
+	uint8_t victory = useVictoryBGM ? 1 : 0;
+	uint8_t result = 1; // same for both viewResults true and false!?
 
-			// For Use Battle BGM
-			if (useBattleBGM == true) {
-				uint8_t battle = 1;
-				output << battle;
-			}
-			else {
-				uint8_t battle = 0;
-				output << battle;
-			}
+	data[e_old->pointer + 172] = battle;
+	data[e_old->pointer + 198] = victory;
+	data[e_old->pointer + 224] = result;
+	data[e_old->pointer + 250] = battle;
 
-			// copy all contents before victoryBGM
-			for (int i = 173; i < 198; i++) {
-				input.seekg(i);
-				char b;
-				input.read(&b, 1);
-				output << b;
-			}
+	uint8_t zero = 0;
+	char lowe = low(endrollhigh[endrollType]);
+	char highe = high(endrollhigh[endrollType]);
+	data[e_old->pointer + 487] = lowe;
+	data[e_old->pointer + 488] = highe;
+	data[e_old->pointer + 489] = 0;
+	data[e_old->pointer + 490] = 0;
+	data[e_old->pointer + 491] = endrolllow[endrollType];
+	data[e_old->pointer + 492] = 0;
+	data[e_old->pointer + 493] = 0;
+	data[e_old->pointer + 494] = 0;
 
-			// For Use Victory BGM
-			if (useVictoryBGM == true) {
-				uint8_t victory = 1;
-				output << victory;
-			}
-			else {
-				uint8_t victory = 0;
-				output << victory;
-			}
-
-			// copy all contents before view result
-			for (int i = 199; i < 224; i++) {
-				input.seekg(i);
-				char b;
-				input.read(&b, 1);
-				output << b;
-			}
-
-			// For View Results
-			if (viewResults == true) {
-				uint8_t result = 1;
-				output << result;
-			}
-			else {
-				uint8_t result = 1;
-				output << result;
-			}
-
-			// copy all contents before resumeBGM
-			for (int i = 225; i < 250; i++) {
-				input.seekg(i);
-				char b;
-				input.read(&b, 1);
-				output << b;
-			}
-
-			// For ResumeBGM, both use and resume must be true to have music play
-			if (useBattleBGM == true) {
-				uint8_t resume = 1;
-				output << resume;
-			}
-			else {
-				uint8_t resume = 0;
-				output << resume;
-			}
-
-			// copy all contents before endroll segment
-			for (int i = 251; i < 487; i++) {
-				input.seekg(i);
-				char b;
-				input.read(&b, 1);
-				output << b;
-			}
-
-			uint8_t zero = 0;
-			// Endroll Segment
-			// turn two byte high value into hex chars
-			char lowe = low(endrollhigh[endrollType]);
-			char highe = high(endrollhigh[endrollType]);
-			// Write the low byte
-			output << lowe;
-			// Write the high byte
-			output << highe;
-			// Write the second two bytes
-			output << zero;
-			output << zero;
-
-			// turn two byte low value into hex chars
-			//char lowel = low(endrolllow[endrollType]);
-			//char highel = low(endrolllow[endrollType]);
-			// Write the bytes
-			output << endrolllow[endrollType];
-			output << zero;
-			output << zero;
-			output << zero;
-
-
-			// copy the rest of the contents
-			for (int i = 495; i < length; i++) {
-				input.seekg(i);
-				char b;
-				input.read(&b, 1);
-				output << b;
-			}
-
-		}
-		output.close();
-	}
-	input.close();
 }
 
+std::map<int, Enemy> loadEnemies(unsigned char*enemy_data, std::wstring filename) {
+	std::map<int, Enemy> m;
+	std::ifstream file;
+	file.open(filename, std::ios::in);
+	if (file.is_open()) {
+		std::string delimiter = ",";
+		std::string line;
+		std::string token;
+		size_t pos;
+		int i = 0;
+		std::vector<std::string> row;
+		while (getline(file, line)) {
+			pos = 0;
+			row.clear();
+			while ((pos = line.find(delimiter)) != std::string::npos) {
+				token = line.substr(0, pos);
+				row.push_back(token);
+				line.erase(0, pos + delimiter.length());
+			}
+			row.push_back(line);
+			Enemy e;
+			e.name = row[0];
+			e.pointer = std::stoi(row[1]);
+			e.size = std::stoi(row[2]);
+			e.data = new unsigned char[e.size];
+			std::memcpy(e.data, &enemy_data[e.pointer], e.size);
+			m[i] = e;
+			i += 1;
+		}
+	}
+	return m;
+}
+
+
 // Main randomization function
-bool randomToHexFile(std::mt19937 rng, vectorvector inputVector) {
-	// Map for storing the file names
-	std::map <int, std::wstring> hexFiles;
-	hexFiles[0] = L".\\working\\hex\\EnemyGroupDataEnemies"; // Frist chunk of files is enemies, enemy rando comming at some point
-	hexFiles[1] = L".\\working\\hex\\BossTressa11"; // solo Tressa Mikk and Makk
-	hexFiles[2] = L".\\working\\hex\\BossTressa12"; // duo Tressa Mikk and Makk
-	hexFiles[3] = L".\\working\\hex\\BossTressa13"; // tri Tressa Mikk and Makk
-	hexFiles[4] = L".\\working\\hex\\BossTressa14"; // normal Tressa Mikk and Makk
-	hexFiles[5] = L".\\working\\hex\\BossTressa2"; // Tressa chapter 2
-	hexFiles[6] = L".\\working\\hex\\BossTressa3"; // Tressa chapter 3
-	hexFiles[7] = L".\\working\\hex\\BossTressa4"; // Tressa chapter 4
-	hexFiles[8] = L".\\working\\hex\\BossTherion11"; // solo Therion chapter 1
-	hexFiles[9] = L".\\working\\hex\\BossTherion12"; // duo Therion chapter 1
-	hexFiles[10] = L".\\working\\hex\\BossTherion13"; // tri Therion chapter 1
-	hexFiles[11] = L".\\working\\hex\\BossTherion14"; // normal Therion chapter 1
-	hexFiles[12] = L".\\working\\hex\\BossTherion2"; // Therion chapter 2
-	hexFiles[13] = L".\\working\\hex\\BossTherion3"; // Therion chapter 3
-	hexFiles[14] = L".\\working\\hex\\BossTherion4"; // Therion chapter 4
-	hexFiles[15] = L".\\working\\hex\\BossOlberic11"; // solo Olberic chapter 1
-	hexFiles[16] = L".\\working\\hex\\BossOlberic12"; // duo Olberic chapter 1
-	hexFiles[17] = L".\\working\\hex\\BossOlberic13"; // tri Olberic chapter 1
-	hexFiles[18] = L".\\working\\hex\\BossOlberic14"; // normal Olberic chapter 1
-	hexFiles[19] = L".\\working\\hex\\BossOlberic2"; // Olberic chapter 2
-	hexFiles[20] = L".\\working\\hex\\BossOlberic3"; // Olberic chapter 3
-	hexFiles[21] = L".\\working\\hex\\BossOlberic4"; // Olberic chapter 4
-	hexFiles[22] = L".\\working\\hex\\BossHannit11"; // solo Hannit chapter 1
-	hexFiles[23] = L".\\working\\hex\\BossHannit12"; // duo Hannit chapter 1
-	hexFiles[24] = L".\\working\\hex\\BossHannit13"; // tri Hannit chapter 1
-	hexFiles[25] = L".\\working\\hex\\BossHannit14"; // normal Hannit chapter 1
-	hexFiles[26] = L".\\working\\hex\\BossHannit21"; // Hannit chapter 2
-	hexFiles[27] = L".\\working\\hex\\BossHannit22"; // Hannit Blocking tree enemy
-	hexFiles[28] = L".\\working\\hex\\BossHannit3"; // Hannit chapter 3
-	hexFiles[29] = L".\\working\\hex\\BossHannit4"; // Hannit chapter 4
-	hexFiles[30] = L".\\working\\hex\\BossOphilia11"; // solo Ophilia chapter 1
-	hexFiles[31] = L".\\working\\hex\\BossOphilia12"; // duo Ophilia chapter 1
-	hexFiles[32] = L".\\working\\hex\\BossOphilia13"; // tri Ophilia chapter 1
-	hexFiles[33] = L".\\working\\hex\\BossOphilia14"; // normal Ophilia chapter 1
-	hexFiles[34] = L".\\working\\hex\\BossOphilia2"; // Ophilia chapter 2
-	hexFiles[35] = L".\\working\\hex\\BossOphilia3"; // Ophilia chapter 3
-	hexFiles[36] = L".\\working\\hex\\BossOphilia4"; // Ophilia chapter 4
-	hexFiles[37] = L".\\working\\hex\\BossPrimrose11"; // solo Primrose chapter 1
-	hexFiles[38] = L".\\working\\hex\\BossPrimrose12"; // duo Primrose chapter 1
-	hexFiles[39] = L".\\working\\hex\\BossPrimrose13"; // tri Primrose chapter 1
-	hexFiles[40] = L".\\working\\hex\\BossPrimrose14"; // normal Primrose chapter 1
-	hexFiles[41] = L".\\working\\hex\\BossPrimrose2"; // Primrose chapter 2
-	hexFiles[42] = L".\\working\\hex\\BossPrimrose3"; // Primrose chapter 3
-	hexFiles[43] = L".\\working\\hex\\BossPrimrose41"; // Primrose chapter 4 phase 1
-	hexFiles[44] = L".\\working\\hex\\BossPrimrose42"; // Primrose chapter 4 phase 2
-	hexFiles[45] = L".\\working\\hex\\BossCyrus11"; // solo Cyrus chapter 1
-	hexFiles[46] = L".\\working\\hex\\BossCyrus12"; // duo Cyrus chapter 1
-	hexFiles[47] = L".\\working\\hex\\BossCyrus13"; // tri Cyrus chapter 1
-	hexFiles[48] = L".\\working\\hex\\BossCyrus14"; // normal Cyrus chapter 1
-	hexFiles[49] = L".\\working\\hex\\BossCyrus2"; // Cyrus chapter 2
-	hexFiles[50] = L".\\working\\hex\\BossCyrus3"; // Cyrus chapter 3
-	hexFiles[51] = L".\\working\\hex\\BossCyrus4"; // Cyrus chapter 4
-	hexFiles[52] = L".\\working\\hex\\BossAlfyn11"; // solo Alfyn chapter 1
-	hexFiles[53] = L".\\working\\hex\\BossAlfyn12"; // duo Alfyn chapter 1
-	hexFiles[54] = L".\\working\\hex\\BossAlfyn13"; // tri Alfyn chapter 1
-	hexFiles[55] = L".\\working\\hex\\BossAlfyn14"; // normal Alfyn chapter 1
-	hexFiles[56] = L".\\working\\hex\\BossAlfyn2"; // Alfyn chapter 2
-	hexFiles[57] = L".\\working\\hex\\BossAlfyn3"; // Alfyn chapter 3
-	hexFiles[58] = L".\\working\\hex\\BossAlfyn4"; // Alfyn chapter 4
-	hexFiles[59] = L".\\working\\hex\\BossWarmaster"; // Warmaster
-	hexFiles[60] = L".\\working\\hex\\BossSorceror"; // Sorceror
-	hexFiles[61] = L".\\working\\hex\\BossRunelord"; // Runelord
-	hexFiles[62] = L".\\working\\hex\\BossStarseer"; // Starseer
-	hexFiles[63] = L".\\working\\hex\\SideBosses"; // Sidestory bosses, randomizer comming at some point
-	hexFiles[64] = L".\\working\\hex\\BossGalderaUpper"; // Galdera phase 2
-	hexFiles[65] = L".\\working\\hex\\BossGalderaLower"; // Galdera phase 1
-	hexFiles[66] = L".\\working\\hex\\BossGateTressa"; // Tressa Gate
-	hexFiles[67] = L".\\working\\hex\\BossGateTherion"; // Therion Gate
-	hexFiles[68] = L".\\working\\hex\\BossGateOlberic"; // Olberic Gate
-	hexFiles[69] = L".\\working\\hex\\BossGateHannit"; // Hannit Gate
-	hexFiles[70] = L".\\working\\hex\\BossGateOphilia"; // Ophilia Gate
-	hexFiles[71] = L".\\working\\hex\\BossGatePrimrose"; // Primrose Gate
-	hexFiles[72] = L".\\working\\hex\\BossGateCyrus"; // Cyrus Gate
-	hexFiles[73] = L".\\working\\hex\\BossGateAlfyn"; // Alfyn Gate
-	hexFiles[74] = L".\\working\\hex\\NPCEnd"; // NPCs, probably will not randomize except for items.
+bool randomToHexFile(std::mt19937 rng, vectorvector inputVector, unsigned char *enemy_data) {
+	// Load enemy data from "EnemyGroupData.uexp"
+	std::map <int, Enemy> hexFiles = loadEnemies(enemy_data, L".\\working\\enemy_data.csv");
 
 	// map for storing music of normal boss
 	std::map <int, int> music;
@@ -777,16 +606,9 @@ bool randomToHexFile(std::mt19937 rng, vectorvector inputVector) {
 	randomBosses.push_back(inputVector[5][6]); // Cyrus' gate
 	randomBosses.push_back(inputVector[5][7]); // Alfyn's gate
 
-	// Check for files first
-	bool errorCheck = true;
-	for (int i = 0; i < hexFiles.size(); i++) {
-		DWORD check = GetFileAttributes(hexFiles[i].c_str());
-		if (check == INVALID_FILE_ATTRIBUTES) {
-			std::cout << L"Could not find file " << hexFiles[i].c_str() << std::endl;
-			errorCheck = false;
-		}
-	}
+
 	// Ensure that the size of the deque matches that of the map
+	bool errorCheck = true;
 	if (randomBosses.size() != 47) {
 		std::cout << "Internal Error: RandomBosses does not equal 47" << std::endl;
 		errorCheck = false;
@@ -893,34 +715,18 @@ bool randomToHexFile(std::mt19937 rng, vectorvector inputVector) {
 			case 27:
 			case 63:
 			case 74:
+				// TODO: update hexCopy inputs to just char array
 				// do a straight copy for the files
-				hexCopy(hexFiles[randomBossMap[i]], L".\\working\\Octopath_Traveler\\Content\\Battle\\Database\\EnemyGroupData.uexp");
+				hexCopy(&hexFiles[randomBossMap[i]], enemy_data);
 				break;
 			default:
+				// TODO: update hexCopy input by replacing hex files with vanilla and swap char arrays. Everything else should remain the same!
 				// Copy with random bosses
-				bossHexCopy(hexFiles[i], hexFiles[randomBossMap[i]], ".\\working\\Octopath_Traveler\\Content\\Battle\\Database\\EnemyGroupData.uexp", battleBGM[i], victoryBGM[i], i == 65 ? false : true, music[i], endroll[i]);
+				bossHexCopy(&hexFiles[i], &hexFiles[randomBossMap[i]], enemy_data, battleBGM[i], victoryBGM[i], i == 65 ? false : true, music[i], endroll[i]);
 				break;
 			}
 		}
-		// Check size of file to see if it is written correctly
-		bool fileSizeCheck = false;
-		std::ifstream check(".\\working\\Octopath_Traveler\\Content\\Battle\\Database\\EnemyGroupData.uexp", std::ios_base::in | std::ios_base::binary);
-		if (check.is_open()) {
-			// get size of file
-			check.ignore(std::numeric_limits<std::streamsize>::max());
-			std::streamsize length = check.gcount();
-			check.clear();
-			check.seekg(0, std::ios_base::beg);
-			// check if length is the correct size
-			if (length == 1243465) {
-				fileSizeCheck = true;
-			}
-			else {
-				fileSizeCheck = false;
-			}
-		}
-		check.close();
-		// returns true if file size is correct
-		return fileSizeCheck;
+
+		return true;
 	}
 }

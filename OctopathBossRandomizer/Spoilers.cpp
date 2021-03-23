@@ -2,7 +2,7 @@
 
 using namespace std;
 
-void spoiler(std::deque<int> input, unsigned int seedInput) {
+void spoiler(std::deque<int> input, wstring output_dir) {
 
     // Boss names
     map<int, string> bossesInitial;
@@ -105,7 +105,7 @@ void spoiler(std::deque<int> input, unsigned int seedInput) {
     bossesReplaced[46] = "Galdera Phase 2";
 
     // Create Spolier Log
-    ofstream spoilers(".\\working\\Boss Randomizer Spoilers.txt");
+    ofstream spoilers(output_dir + L"\\Boss Randomizer Spoilers.txt");
     spoilers << "Octopath Bosses Randomizer Spoilers\n";
     for (unsigned int i = 0; i < input.size(); i++) {
         string bossDecoded = "For " + bossesInitial[i] + ": " + bossesReplaced[input.front()] + "\n";
@@ -118,7 +118,7 @@ void spoiler(std::deque<int> input, unsigned int seedInput) {
     spoilers.close();
 
     // Create Chapter 1 Spoilers (For more intense options)
-    ofstream chapter1Spoilers(".\\working\\Chapter 1 Boss Spoilers.txt");
+    ofstream chapter1Spoilers(output_dir + L"\\Chapter 1 Boss Spoilers.txt");
     chapter1Spoilers << "Chapter 1 Bosses Spoilers\n";
     for (unsigned int i = 0; i < 8; i++) {
         string bossDecoded = "For " + bossesInitial[i] + ": " + bossesReplaced[input.front()] + "\n";
@@ -130,10 +130,6 @@ void spoiler(std::deque<int> input, unsigned int seedInput) {
     }
     chapter1Spoilers.close();
 
-    // Create text file with seed information
-    ofstream seed(".\\working\\Seed.txt");
-    seed << "Seed: " << seedInput << std::endl;
-    seed.close();
 }
 
 void soloSpoiler(std::deque<int> input, unsigned int seedInput, std::deque<int> characters) {

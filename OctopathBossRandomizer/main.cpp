@@ -21,6 +21,9 @@
 #include <ShObjIdl.h>
 #include <winbase.h>
 #include <processthreadsapi.h>
+#include "zlib.h"
+#include "openssl/sha.h"
+#include "pak.h"
 
 // Global Variables for dialog boxes
 intvector configs(18);
@@ -409,21 +412,23 @@ INT_PTR CALLBACK ConfigDlgProc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lP
 				}
 
 				// PC win condition 
-				if (buffer[4] == hashing.at(3)) {
-					configs[4] = 0;
-				}
-				else if (buffer[4] == hashing.at(0)) {
-					configs[4] = 1;
-				}
-				else {
-					configs[4] = 0;
-				}
+				configs[4] = 0;
+				//if (buffer[4] == hashing.at(3)) {
+				//	configs[4] = 0;
+				//}
+				//else if (buffer[4] == hashing.at(0)) {
+				//	configs[4] = 1;
+				//}
+				//else {
+				//	configs[4] = 0;
+				//}
 
 				// Full Random
 				configs[5] = _wtoi(std::wstring(1, buffer[5]).c_str());
 
 				// Solo Random
-				configs[6] = _wtoi(std::wstring(1, buffer[6]).c_str());
+				configs[6] = 0;
+				//configs[6] = _wtoi(std::wstring(1, buffer[6]).c_str());
 
 				// Force Bosses 
 				configs[7] = _wtoi(std::wstring(1, buffer[7]).c_str());
@@ -968,6 +973,11 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
 			EnableWindow(specificPCOption, false);
 		}
 
+		// Force some to be grayed out (at least for now
+		EnableWindow(soloRandom, false);
+		EnableWindow(PCWin, false);
+		EnableWindow(GalderaWin, false);
+
 		SendDlgItemMessage(hwnd, IDE_EDIT, WM_SETTEXT, 0, (LPARAM)pakDir.c_str());
 	}
 	// Set font for child windows
@@ -1021,315 +1031,188 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
 		// Main button, does all the randomization
 		case IDB_RANDOMIZE_BUTTON:
 		{
-			// Check the pak path first
+
+			// Take input from seed edit box, use random one from device otherwise
+			LRESULT seedLen = SendMessage(GetDlgItem(hwnd, IDE_SEED), WM_GETTEXTLENGTH, 0, 0);
+			std::random_device dev;
+			std::mt19937 rng;
+			// Setup random number generator
+			unsigned int seed;
+			if (seedLen != 0) {
+				WCHAR* seedBuffer = new WCHAR[seedLen];
+				SendMessage(GetDlgItem(hwnd, IDE_SEED), WM_GETTEXT, (WPARAM)seedLen + 1, (LPARAM)seedBuffer);
+				seed = std::stoi(seedBuffer);
+				rng.seed(seed);
+			}
+			else {
+				seed = dev();
+				rng.seed(seed);
+			}
+
 			// Retrieve pak path from edit control
 			LRESULT len = SendMessage(GetDlgItem(hwnd, IDE_EDIT), WM_GETTEXTLENGTH, 0, 0);
 			WCHAR* buffer = new WCHAR[len];
 			SendMessage(GetDlgItem(hwnd, IDE_EDIT), WM_GETTEXT, (WPARAM)len + 1, (LPARAM)buffer);
-			// Verify that the pak path does indeed contain the Octopath pak
-			// Also allow for not inputing anything, and place folder in exe direcotry
-			DWORD pakAttrib = GetFileAttributes((std::wstring(buffer) + L"\\Octopath_Traveler-WindowsNoEditor.pak").c_str());
-			if (pakAttrib == INVALID_FILE_ATTRIBUTES && len != 0) {
-				MessageBox(hwnd, L"Octopath Pak file not found in pak path.\nView usage for more details", L"Error Randomizing", MB_ICONEXCLAMATION | MB_OK);
+
+			// Verify that a pak path does indeed contain the Octopath pak
+			std::wstring pak_file_steam = L"\\Octopath_Traveler-WindowsNoEditor.pak";
+			std::wstring pak_file_switch = L"\\Kingship-Switch.pak";
+			DWORD pakAttribSteam = GetFileAttributes((std::wstring(buffer) + pak_file_steam).c_str());
+			DWORD pakAttribSwitch = GetFileAttributes((std::wstring(buffer) + pak_file_switch).c_str());
+
+			bool is_steam = false;
+			std::wstring pak_file;
+			if (pakAttribSteam != INVALID_FILE_ATTRIBUTES && len > 0) {
+				is_steam = true;
+				pak_file = std::wstring(buffer) + pak_file_steam;
+			} else if (pakAttribSwitch != INVALID_FILE_ATTRIBUTES && len > 0) {
+				is_steam = false;
+				pak_file = std::wstring(buffer) + pak_file_switch;
 			}
 			else {
-				// Get on with the randomization
-				// Setup random number generator
+				MessageBox(hwnd, L"Octopath Pak file not found in pak path.\nView usage for more details", L"Error Randomizing", MB_ICONEXCLAMATION | MB_OK);
+				SendMessage(hwnd, WM_DESTROY, 0, 0);
+			}
 
-				// Take input from seed edit box, use random one from device otherwise
-				LRESULT seedLen = SendMessage(GetDlgItem(hwnd, IDE_SEED), WM_GETTEXTLENGTH, 0, 0);
-				std::random_device dev;
-				std::mt19937 rng;
-				unsigned int seed;
-				if (seedLen != 0) {
-					WCHAR* seedBuffer = new WCHAR[seedLen];
-					SendMessage(GetDlgItem(hwnd, IDE_SEED), WM_GETTEXT, (WPARAM)seedLen + 1, (LPARAM)seedBuffer);
-					seed = std::stoi(seedBuffer);
-					rng.seed(seed);
-				}
-				else {
-					seed = dev();
-					rng.seed(seed);
-				}
-				// Open log file
-				std::wofstream logFile;
-				logFile.open(L".\\working\\log.txt");
+			// Initialize the PAK
+			PAK pak(pak_file);
+			if (!pak.file.is_open()) {
+				MessageBox(hwnd, L"Pak did not open properly.\nView usage for more deteails.", L"Error Randomizing", MB_ICONEXCLAMATION | MB_OK);
+				SendMessage(hwnd, WM_DESTROY, 0, 0);
+			}
+			// TODO: Might need to consider BOTH paks for switch!
 
-				// Check for pak exe in bin folder, return error if not found
-				DWORD unrealAttrib = GetFileAttributes(L".\\working\\v4\\2\\3\\UnrealPak.exe");
-				if (unrealAttrib != INVALID_FILE_ATTRIBUTES) {
-					logFile << L"Found Unreal pak tool" << std::endl;
-				}
-				else {
-					logFile << L"Unreal Pak tool not found, Exiting" << std::endl;
-					DisplayErrorMessageBox();
-					logFile.close();
-					SendMessage(hwnd, WM_DESTROY, 0, 0);
-				}
+			
+			// Open log file
+			std::wofstream logFile;
+			logFile.open(L".\\working\\log.txt");
+			logFile << std::wstring(buffer) << std::endl;
+			
+			// Load files
+			unsigned char* enemyGroupData;
+			if (is_steam) {
+				pak.LoadFiles(L".\\working\\randomizeboss.txt");
+				pak.EditFile("../../../Octopath_Traveler/Content/Event/json/SC_MS_ALI_000600", 0x598a, 0x30);
+				enemyGroupData = pak.decomp_files["../../../Octopath_Traveler/Content/Battle/Database/EnemyGroupData.uexp"];
+				pak.is_modded["../../../Octopath_Traveler/Content/Battle/Database/EnemyGroupData.uexp"] = true;
+			}
+			else {
+				pak.LoadFiles(L".\\working\\switchboss.txt");
+				pak.EditFile("../../../Kingship/Content/Event/json/SC_MS_ALI_000600", 0x598a, 0x30);
+				enemyGroupData = pak.decomp_files["../../../Kingship/Content/Battle/Database/EnemyGroupData.uexp"];
+				pak.is_modded["../../../Kingship/Content/Battle/Database/EnemyGroupData.uexp"] = true;
+			}
 
-				// Get the Character from the Specific Character Box
-				configs[10] = (int)SendMessage(GetDlgItem(hwnd, IDB_SPECIFICPCOPTION), CB_GETCURSEL, 0, 0);
-				// Add one to the config for specific character, 0 if specific character is disabled
-				int specificCharacter = 0;
-				if (configs[9] == 2) {
-					specificCharacter = configs[10] + 1;
-				}
-				else if (configs[9] == 1) {
-					// Generate Random Character for forcing
-					std::uniform_int_distribution <std::mt19937::result_type> characters(1, 8);
-					specificCharacter = characters(rng);
-				}
-				else {
-					specificCharacter = 0;
-				}
+			// Get the Character from the Specific Character Box
+			configs[10] = (int)SendMessage(GetDlgItem(hwnd, IDB_SPECIFICPCOPTION), CB_GETCURSEL, 0, 0);
+			// Add one to the config for specific character, 0 if specific character is disabled
+			int specificCharacter = 0;
+			if (configs[9] == 2) {
+				specificCharacter = configs[10] + 1;
+			}
+			else if (configs[9] == 1) {
+				// Generate Random Character for forcing
+				std::uniform_int_distribution <std::mt19937::result_type> characters(1, 8);
+				specificCharacter = characters(rng);
+			}
+			else {
+				specificCharacter = 0;
+			}
+			
+			// If checked, start with force randomization first
+			vectorvector fixedBosses(7);
+			if (configs[7] == 1) {
+				fixedBosses = fixedTier(rng, configs);
+			}
+			// Randomize the bosses
+			vectorvector randomizedLists(7);
+			// Set bool options based on config
+			bool mixChapter24;
+			bool mixChapter14;
+			bool randomizeShrine;
+			bool includeShrine;
+			bool randomizeGate;
+			bool includeGate;
+			bool includeGaldera;
+			bool includeDuplicate;
+			bool fullRandom;
+			configs[0] == 1 ? mixChapter24 = true : mixChapter24 = false;
+			configs[0] == 2 ? mixChapter14 = true : mixChapter14 = false;
+			configs[1] == 1 ? randomizeShrine = true : randomizeShrine = false;
+			configs[1] == 2 ? includeShrine = true : includeShrine = false;
+			configs[2] == 1 ? randomizeGate = true : randomizeGate = false;
+			configs[2] == 2 ? includeGate = true : includeGate = false;
+			configs[3] == 1 ? includeGaldera = true : includeGaldera = false;
+			configs[8] == 1 ? includeDuplicate = true : includeDuplicate = false;
+			configs[5] == 1 ? fullRandom = true : fullRandom = false;
+			logFile << "Randomzing bosses..." << std::endl;
+			randomizedLists = randomizeBosses(rng, fixedBosses, specificCharacter, mixChapter14, mixChapter24, randomizeShrine, includeShrine, randomizeGate, includeGate, includeGaldera, includeDuplicate, fullRandom);
+			
+			// Write random bosses to files
+			bool soloTraveler;
+			configs[6] == 1 ? soloTraveler = true : soloTraveler = false;
+			logFile << "Writing random bosses to files" << std::endl;
+			// write random bosses into the EnemyGroupData.uexp file
+			bool errorHexCheck = randomToHexFile(rng, randomizedLists, enemyGroupData);
+			if (errorHexCheck == false) {
+				// Show error message for hex files
+				logFile << L"Error in writting from hex files." << std::endl;
+				DisplayErrorMessageBox();
+				logFile.close();
+				SendMessage(hwnd, WM_DESTROY, 0, 0);
+			}
 
-				// If checked, start with force randomization first
-				vectorvector fixedBosses(7);
-				if (configs[7] == 1) {
-					fixedBosses = fixedTier(rng, configs);
-				}
-				// Randomize the bosses
-				vectorvector randomizedLists(7);
-				// Set bool options based on config
-				bool mixChapter24;
-				bool mixChapter14;
-				bool randomizeShrine;
-				bool includeShrine;
-				bool randomizeGate;
-				bool includeGate;
-				bool includeGaldera;
-				bool includeDuplicate;
-				bool fullRandom;
-				configs[0] == 1 ? mixChapter24 = true : mixChapter24 = false;
-				configs[0] == 2 ? mixChapter14 = true : mixChapter14 = false;
-				configs[1] == 1 ? randomizeShrine = true : randomizeShrine = false;
-				configs[1] == 2 ? includeShrine = true : includeShrine = false;
-				configs[2] == 1 ? randomizeGate = true : randomizeGate = false;
-				configs[2] == 2 ? includeGate = true : includeGate = false;
-				configs[3] == 1 ? includeGaldera = true : includeGaldera = false;
-				configs[8] == 1 ? includeDuplicate = true : includeDuplicate = false;
-				configs[5] == 1 ? fullRandom = true : fullRandom = false;
-				logFile << "Randomzing bosses..." << std::endl;
-				randomizedLists = randomizeBosses(rng, fixedBosses, specificCharacter, mixChapter14, mixChapter24, randomizeShrine, includeShrine, randomizeGate, includeGate, includeGaldera, includeDuplicate, fullRandom);
+			std::wstring output_dir = L".\\seed_" + std::to_wstring(seed);
+			if (GetFileAttributes(output_dir.c_str()) == INVALID_FILE_ATTRIBUTES) {
+				CreateDirectory(output_dir.c_str(), NULL);
+			}
 
-				// Now that the bosses are randomized, put them into the files
-				// Ensure that the file structure is there
-				if (GetFileAttributes(L".\\working\\Octopath_Traveler\\Content\\Event\\json") == INVALID_FILE_ATTRIBUTES) {
-					if (GetFileAttributes(L".\\working\\Octopath_Traveler") == INVALID_FILE_ATTRIBUTES) {
-						CreateDirectory(L".\\working\\Octopath_Traveler", NULL);
-					}
-					if (GetFileAttributes(L".\\working\\Octopath_Traveler\\Content") == INVALID_FILE_ATTRIBUTES) {
-						CreateDirectory(L".\\working\\Octopath_Traveler\\Content", NULL);
-					}
-					if (GetFileAttributes(L".\\working\\Octopath_Traveler\\Content\\Event") == INVALID_FILE_ATTRIBUTES) {
-						CreateDirectory(L".\\working\\Octopath_Traveler\\Content\\Event", NULL);
-					}
-					CreateDirectory(L".\\working\\Octopath_Traveler\\Content\\Event\\json", NULL);
+			std::wstring output_pak;
+			if (is_steam) {
+				output_pak = output_dir + L"\\RandomizedBosses_P.pak";
+			}
+			else {
+				output_pak += output_dir + L"\\romfs";
+				if (GetFileAttributes(output_pak.c_str()) == INVALID_FILE_ATTRIBUTES) {
+					CreateDirectory(output_pak.c_str(), NULL);
 				}
-				// Ensure the structure is there for the enemy group data
-				if (GetFileAttributes(L".\\working\\Octopath_Traveler\\Content\\Battle\\Database") == INVALID_FILE_ATTRIBUTES) {
-					if (GetFileAttributes(L".\\working\\Octopath_Traveler\\Content\\Battle") == INVALID_FILE_ATTRIBUTES) {
-						CreateDirectory(L".\\working\\Octopath_Traveler\\Content\\Battle", NULL);
-					}
-					CreateDirectory(L".\\working\\Octopath_Traveler\\Content\\Battle\\Database", NULL);
+				output_pak += L"\\Kingship";
+				if (GetFileAttributes(output_pak.c_str()) == INVALID_FILE_ATTRIBUTES) {
+					CreateDirectory(output_pak.c_str(), NULL);
 				}
-				// Write random bosses to files
-				bool soloTraveler;
-				configs[6] == 1 ? soloTraveler = true : soloTraveler = false;
-				logFile << "Writing random bosses to files" << std::endl;
-				// write random bosses into the EnemyGroupData.uexp file
-				// Delete any EnemyGroupData.uexp that might be there
-				DeleteFile(L".\\working\\Octopath_Traveler\\Content\\Battle\\Database\\EnemyGroupData.uexp");
-				bool errorHexCheck = randomToHexFile(rng, randomizedLists);
-				if (errorHexCheck == false) {
-					// Show error message for hex files
-					logFile << L"Error in writting from hex files." << std::endl;
-					DisplayErrorMessageBox();
-					logFile.close();
-					SendMessage(hwnd, WM_DESTROY, 0, 0);
+				output_pak += L"\\Content";
+				if (GetFileAttributes(output_pak.c_str()) == INVALID_FILE_ATTRIBUTES) {
+					CreateDirectory(output_pak.c_str(), NULL);
 				}
-				int errorCheck = randomToFile(rng, randomizedLists, soloTraveler, seed, configs[4]);
-				if (errorCheck == 1) {
-					// Error out
-					logFile << L"Error in writing to files." << std::endl;
-					DisplayErrorMessageBox();
-					logFile.close();
-					SendMessage(hwnd, WM_DESTROY, 0, 0);
+				output_pak += L"\\Paks";
+				if (GetFileAttributes(output_pak.c_str()) == INVALID_FILE_ATTRIBUTES) {
+					CreateDirectory(output_pak.c_str(), NULL);
 				}
-				// If force pc is set, main menu files to directory
-				// Get current character, and translate it to a file
-				// Make sure that directory is there, create otherwise
-				if (GetFileAttributes(L".\\working\\Octopath_Traveler\\Content\\UI\\Title\\BP\\Scene\\Parts") == INVALID_FILE_ATTRIBUTES) {
-					if (GetFileAttributes(L".\\working\\Octopath_Traveler") == INVALID_FILE_ATTRIBUTES) {
-						CreateDirectory(L".\\working\\Octopath_Traveler", NULL);
-					}
-					if (GetFileAttributes(L".\\working\\Octopath_Traveler\\Content") == INVALID_FILE_ATTRIBUTES) {
-						CreateDirectory(L".\\working\\Octopath_Traveler\\Content", NULL);
-					}
-					if (GetFileAttributes(L".\\working\\Octopath_Traveler\\Content\\UI") == INVALID_FILE_ATTRIBUTES) {
-						CreateDirectory(L".\\working\\Octopath_Traveler\\Content\\UI", NULL);
-					}
-					if (GetFileAttributes(L".\\working\\Octopath_Traveler\\Content\\UI\\Title") == INVALID_FILE_ATTRIBUTES) {
-						CreateDirectory(L".\\working\\Octopath_Traveler\\Content\\UI\\Title", NULL);
-					}
-					if (GetFileAttributes(L".\\working\\Octopath_Traveler\\Content\\UI\\Title\\BP") == INVALID_FILE_ATTRIBUTES) {
-						CreateDirectory(L".\\working\\Octopath_Traveler\\Content\\UI\\Title\\BP", NULL);
-					}
-					if (GetFileAttributes(L".\\working\\Octopath_Traveler\\Content\\UI\\Title\\BP\\Scene") == INVALID_FILE_ATTRIBUTES) {
-						CreateDirectory(L".\\working\\Octopath_Traveler\\Content\\UI\\Title\\BP\\Scene", NULL);
-					}
-					CreateDirectory(L".\\working\\Octopath_Traveler\\Content\\UI\\Title\\BP\\Scene\\Parts", NULL);
-				}
-				std::map<int, std::wstring> characterNames;
-				characterNames[0] = L"All";
-				characterNames[1] = L"Ophilia";
-				characterNames[2] = L"Cyrus";
-				characterNames[3] = L"Tressa";
-				characterNames[4] = L"Olberic";
-				characterNames[5] = L"Primrose";
-				characterNames[6] = L"Alfyn";
-				characterNames[7] = L"Therion";
-				characterNames[8] = L"H'annit";
+				output_pak = output_pak + L"\\Kingship-Switch_7_P.pak";
+			}
 
-				logFile << "Setting main menu to " << characterNames[specificCharacter] << std::endl;
-				std::wstring characterPath = L".\\working\\UI\\" + characterNames[specificCharacter] + L"\\TitlePlayerSelect.uasset";
-				std::wstring charactersinglePath = L".\\working\\UI\\" + characterNames[specificCharacter] + L"\\ItemPlayerSelect.uasset";
-				// Move the character UI to the files
-				CopyFile(characterPath.c_str(), L".\\working\\Octopath_Traveler\\Content\\UI\\Title\\BP\\Scene\\TitlePlayerSelect.uasset", FALSE);
-				CopyFile(charactersinglePath.c_str(), L".\\working\\Octopath_Traveler\\Content\\UI\\Title\\BP\\Scene\\Parts\\ItemPlayerSelect.uasset", FALSE);
+			// Dump pak
+			pak.BuildPak(output_pak);
 
-				// try-catch statement for the execution, again to prevent errors
-				try {
-					logFile << "************************************" << std::endl;
-					logFile << "Pak tool" << std::endl;
-					logFile << "************************************" << std::endl;
-					WCHAR fullFilename[MAX_PATH];
-					GetFullPathName(L".\\working\\randomizeboss.txt", MAX_PATH, fullFilename, nullptr);
-					WCHAR command[MAX_PATH + 100];
-					// Copy to char the path name
-					swprintf_s(command, L".\\working\\v4\\2\\3\\UnrealPak.exe ..\\..\\..\\RandomizedBosses_P.pak -Create=\"%s\" -compress", fullFilename);
-					// for CreateProccess
-					STARTUPINFO si;
-					PROCESS_INFORMATION pi;
-					ZeroMemory(&si, sizeof(si));
-					si.cb = sizeof(si);
-					ZeroMemory(&pi, sizeof(pi));
+			// TODO: SKIPPING SoloTraveler and Galdera win conditions. Include this in the future!
+			int errorCheck = randomToFile(rng, randomizedLists, soloTraveler, output_dir, configs[4]);
+			if (errorCheck == 1) {
+				// Error out
+				logFile << L"Error in writing to files." << std::endl;
+				DisplayErrorMessageBox();
+				logFile.close();
+				SendMessage(hwnd, WM_DESTROY, 0, 0);
+			}
 
-					// try using CreateProcess for pak tool, without cmd window created
-					CreateProcess(NULL, command, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi);
-
-					// Wait for the pak tool to complete
-					WaitForSingleObject(pi.hProcess, INFINITE);
-
-					// Close process and thread handles
-					CloseHandle(pi.hProcess);
-					CloseHandle(pi.hThread);
-				}
-				catch (const std::exception& e) {
-					std::cerr << e.what();
-					logFile.close();
-					SendMessage(hwnd, WM_DESTROY, 0, 0);
-				}
-				// Check if pak file was created, should always pass
-				if (GetFileAttributes(L".\\working\\RandomizedBosses_P.pak") == INVALID_FILE_ATTRIBUTES) {
-					logFile << "Pak file not created, This shouldn't happen" << std::endl;
-					logFile.close();
-					DisplayErrorMessageBox();
-					SendMessage(hwnd, WM_DESTROY, 0, 0);
-				}
-				// Place pak folder in root
-				logFile << "Moving pak files to BossRandomizer" << std::endl;
-				if (len == 0) {
-					try {
-						if (GetFileAttributes(L".\\BossRandomizer") == INVALID_FILE_ATTRIBUTES) {
-							CreateDirectory(L".\\BossRandomizer", NULL);
-						}
-						if (GetFileAttributes(L".\\Spoilers") == INVALID_FILE_ATTRIBUTES) {
-							CreateDirectory(L".\\Spoilers", NULL);
-						}
-						if (GetFileAttributes(L".\\BossRandomizer\\Spoilers") == INVALID_FILE_ATTRIBUTES) {
-							CreateDirectory(L".\\BossRandomizer\\Spoilers", NULL);
-						}
-						CopyFile(L".\\working\\RandomizedBosses_P.pak", L".\\BossRandomizer\\RandomizedBosses_P.pak", FALSE);
-						CopyFile(L".\\working\\Boss Randomizer Spoilers.txt", L".\\BossRandomizer\\Spoilers\\Boss Randomizer Spoilers.txt", FALSE);
-						CopyFile(L".\\working\\Boss Randomizer Spoilers.txt", L".\\Spoilers\\Boss Randomizer Spoilers.txt", FALSE);
-						CopyFile(L".\\working\\Chapter 1 Boss Spoilers.txt", L".\\BossRandomizer\\Spoilers\\Chapter 1 Boss Spoilers.txt", FALSE);
-						CopyFile(L".\\working\\Chapter 1 Boss Spoilers.txt", L".\\Spoilers\\Chapter 1 Boss Spoilers.txt", FALSE);
-						CopyFile(L".\\working\\Seed.txt", L".\\BossRandomizer\\Spoilers\\Seed.txt", FALSE);
-						CopyFile(L".\\working\\Seed.txt", L".\\Spoilers\\Seed.txt", FALSE);
-						// Clean up root directory
-						DeleteFile(L".\\working\\RandomizedBosses_P.pak");
-						DeleteFile(L".\\working\\Boss Randomizer Spoilers.txt");
-						DeleteFile(L".\\working\\Chapter 1 Boss Spoilers.txt");
-						DeleteFile(L".\\working\\Seed.txt");
-						logFile << "Patch Files Left in Program Directory" << std::endl;
-					}
-					catch (std::exception& e) {
-						logFile << "Error Copying Patch File: " << e.what() << "\n";
-						logFile.close();
-						DisplayErrorMessageBox();
-						SendMessage(hwnd, WM_DESTROY, 0, 0);
-					}
-				}
-				else {
-					// now that we verified the pak exists, move patch to sub directory in pak directory
-					try {
-						if (GetFileAttributes((std::wstring(buffer) + L"\\BossRandomizer").c_str()) == INVALID_FILE_ATTRIBUTES) {
-							CreateDirectory((std::wstring(buffer) + L"\\BossRandomizer").c_str(), NULL);
-						}
-						if (GetFileAttributes((std::wstring(buffer) + L"\\BossRandomizer\\Spoilers").c_str()) == INVALID_FILE_ATTRIBUTES) {
-							CreateDirectory((std::wstring(buffer) + L"\\BossRandomizer\\Spoilers").c_str(), NULL);
-						}
-						if (GetFileAttributes(L".\\working\\BossRandomizer") == INVALID_FILE_ATTRIBUTES) {
-							CreateDirectory(L".\\working\\BossRandomizer", NULL);
-						}
-						if (GetFileAttributes(L".\\Spoilers") == INVALID_FILE_ATTRIBUTES) {
-							CreateDirectory(L".\\Spoilers", NULL);
-						}
-						if (GetFileAttributes(L".\\working\\BossRandomizer\\Spoilers") == INVALID_FILE_ATTRIBUTES) {
-							CreateDirectory(L".\\working\\BossRandomizer\\Spoilers", NULL);
-						}
-						std::wstring pakPathLPC = std::wstring(buffer) + L"\\BossRandomizer\\RandomizedBosses_P.pak";
-						std::wstring spoilerPathLPC = std::wstring(buffer) + L"\\BossRandomizer\\Spoilers\\Boss Randomizer Spoilers.txt";
-						std::wstring chapter1SpoilerPathLPC = std::wstring(buffer) + L"\\BossRandomizer\\Spoilers\\Chapter 1 Boss Spoilers.txt";
-						std::wstring seedPathLPC = std::wstring(buffer) + L"\\BossRandomizer\\Spoilers\\Seed.txt";
-						// Copy to local directory first, as a backup
-						CopyFile(L".\\working\\RandomizedBosses_P.pak", L".\\working\\BossRandomizer\\RandomizedBosses_P.pak", FALSE);
-						CopyFile(L".\\working\\Boss Randomizer Spoilers.txt", L".\\working\\BossRandomizer\\Spoilers\\Boss Randomizer Spoilers.txt", FALSE);
-						CopyFile(L".\\working\\Boss Randomizer Spoilers.txt", L".\\Spoilers\\Boss Randomizer Spoilers.txt", FALSE);
-						CopyFile(L".\\working\\Chapter 1 Boss Spoilers.txt", L".\\working\\BossRandomizer\\Spoilers\\Chapter 1 Boss Spoilers.txt", FALSE);
-						CopyFile(L".\\working\\Chapter 1 Boss Spoilers.txt", L".\\Spoilers\\Chapter 1 Boss Spoilers Spoilers.txt", FALSE);
-						CopyFile(L".\\working\\Seed.txt", L".\\working\\BossRandomizer\\Spoilers\\Seed.txt", FALSE);
-						CopyFile(L".\\working\\Seed.txt", L".\\Spoilers\\Seed.txt", FALSE);
-						// Copy to final destination
-						CopyFile(L".\\working\\RandomizedBosses_P.pak", pakPathLPC.c_str(), FALSE);
-						CopyFile(L".\\working\\Boss Randomizer Spoilers.txt", spoilerPathLPC.c_str(), FALSE);
-						CopyFile(L".\\working\\Chapter 1 Boss Spoilers.txt", chapter1SpoilerPathLPC.c_str(), FALSE);
-						CopyFile(L".\\working\\Seed.txt", seedPathLPC.c_str(), FALSE);
-						// Clean up root directory
-						DeleteFile(L".\\working\\RandomizedBosses_P.pak");
-						DeleteFile(L".\\working\\Boss Randomizer Spoilers.txt");
-						DeleteFile(L".\\working\\Chapter 1 Boss Spoilers.txt");
-						DeleteFile(L".\\working\\Seed.txt");
-						logFile << "Patch File copied successfully" << std::endl;
-					}
-					catch (std::exception& e) {
-						logFile << "Error Copying Patch File: " << e.what() << "\n";
-						logFile.close();
-						DisplayErrorMessageBox();
-						SendMessage(hwnd, WM_DESTROY, 0, 0);
-					}
-				}
-				logFile << "Randomization completed without error." << std::endl;
-				// Display message box for completion
-				if (len == 0) {
-					// Special output prompt for exe direcotry pak file
-					MessageBox(hwnd, L"Randomization Complete, Move \"BossRandomizer\"\nto the pak dir to enjoy the randomized bosses.", L"Randomization Complete", MB_OK);
-				}
-				else {
-					// Normal output prompt
-					MessageBox(hwnd, L"Randomization Complete, enjoy!", L"Randomizing Done", MB_OK);
-				}
+			logFile << "Randomization completed without error." << std::endl;
+			// Display message box for completion
+			if (len == 0) {
+				// Special output prompt for exe direcotry pak file
+				MessageBox(hwnd, L"Randomization Complete, Move \"BossRandomizer\"\nto the pak dir to enjoy the randomized bosses.", L"Randomization Complete", MB_OK);
+			}
+			else {
+				// Normal output prompt
+				MessageBox(hwnd, L"Randomization Complete, enjoy!", L"Randomizing Done", MB_OK);
 			}
 		}
 		break;

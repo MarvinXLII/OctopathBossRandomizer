@@ -71,7 +71,7 @@ BEGIN
     DEFPUSHBUTTON   "OK",IDOK,165,120,50,14
     LTEXT           "Octopath Traveler Boss Randomizer Usage Guide:",IDC_STATIC,109,14,163,8
     LTEXT           "1. Using the ""Browse"" button, find your Octopath Traveler Pak Dir, which will usually be located under:",IDC_STATIC,12,30,330,8
-    LTEXT           "C:\\Program Files (x86)\\Steam\\Steamapps\\Common\\OCTOPATH TRAVELER\\Octopath_Traveler\\Content\\paks",IDC_STATIC,12,42,359,8
+    LTEXT           "",IDC_STATIC,12,42,359,8
     LTEXT           "2. Check the options you want for the randomizer, and click ""Randomize""",IDC_STATIC,12,54,234,8
     LTEXT           "3. Boot the game up, and enjoy the random bosses.",IDC_STATIC,12,66,166,8
     LTEXT           "Note: You will need to hit ""Randomize"" each time you want a new random run",IDC_STATIC,12,78,250,8
