@@ -1062,12 +1062,13 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
 
 			bool is_steam = false;
 			std::wstring pak_file;
-			if (pakAttribSteam != INVALID_FILE_ATTRIBUTES && len > 0) {
-				is_steam = true;
-				pak_file = std::wstring(buffer) + pak_file_steam;
-			} else if (pakAttribSwitch != INVALID_FILE_ATTRIBUTES && len > 0) {
+			if (pakAttribSwitch != INVALID_FILE_ATTRIBUTES && len > 0) {
 				is_steam = false;
 				pak_file = std::wstring(buffer) + pak_file_switch;
+			}
+			else if (pakAttribSteam != INVALID_FILE_ATTRIBUTES && len > 0) {
+				is_steam = true;
+				pak_file = std::wstring(buffer) + pak_file_steam;
 			}
 			else {
 				MessageBox(hwnd, L"Octopath Pak file not found in pak path.\nView usage for more details", L"Error Randomizing", MB_ICONEXCLAMATION | MB_OK);
@@ -1162,16 +1163,20 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
 				SendMessage(hwnd, WM_DESTROY, 0, 0);
 			}
 
-			std::wstring output_dir = L".\\seed_" + std::to_wstring(seed);
-			if (GetFileAttributes(output_dir.c_str()) == INVALID_FILE_ATTRIBUTES) {
-				CreateDirectory(output_dir.c_str(), NULL);
-			}
-
+			std::wstring output_dir;
 			std::wstring output_pak;
 			if (is_steam) {
+				output_dir = L".\\steam_seed_" + std::to_wstring(seed);
+				if (GetFileAttributes(output_dir.c_str()) == INVALID_FILE_ATTRIBUTES) {
+					CreateDirectory(output_dir.c_str(), NULL);
+				}
 				output_pak = output_dir + L"\\RandomizedBosses_P.pak";
 			}
 			else {
+				output_dir = L".\\switch_seed_" + std::to_wstring(seed);
+				if (GetFileAttributes(output_dir.c_str()) == INVALID_FILE_ATTRIBUTES) {
+					CreateDirectory(output_dir.c_str(), NULL);
+				}
 				output_pak += output_dir + L"\\romfs";
 				if (GetFileAttributes(output_pak.c_str()) == INVALID_FILE_ATTRIBUTES) {
 					CreateDirectory(output_pak.c_str(), NULL);
