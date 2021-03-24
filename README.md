@@ -1,7 +1,7 @@
 # OctopathBossRandomizer
-Boss Randomizer for Octopath Traveler (Swtich and Steam)
+Boss Randomizer for Octopath Traveler (Switch and Steam)
 
-See [mastermind1919's](https://github.com/mastermind1919/OctopathBossRandomizer/releases) releases for the full Steam version.
+See [mastermind1919's releases](https://github.com/mastermind1919/OctopathBossRandomizer/releases) for the full Steam version.
 
 ### About
 Tired of fighting the bosses in the same order over and over? Wondered what it would be like to fight Galdera instead of the Orge Eagle? 
